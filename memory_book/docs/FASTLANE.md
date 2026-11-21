@@ -6,7 +6,7 @@ The lanes live in `memory_book/fastlane/Fastfile`. They call `flutter build ipa`
 
 On CI the build number is the higher of `pubspec.yaml` and one more than the newest build already on that store. The workflow does not commit that number.
 
-Before the iOS archive, CI installs CocoaPods 1.17.0 with the job's Ruby. The sign-in plugin still needs `pod`, and the copy preinstalled on the Mac runner was built for a different Ruby.
+Before the iOS archive, CI installs CocoaPods 1.17.0 with the job's Ruby and runs the archive outside the Fastlane bundle. The sign-in plugin still needs `pod`. The copy preinstalled on the Mac runner was built for a different Ruby, and Bundler rejects a `pod` that is not in the Fastlane Gemfile.
 
 `fastlane/whats_new.txt` is sent with the build. TestFlight shows it as What to Test. Play internal shows it as the release notes, which must stay within 500 characters. The public App Store What's New stays on the version page in App Store Connect.
 
