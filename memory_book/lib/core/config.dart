@@ -21,7 +21,7 @@ class AppConfig {
   );
   static const revenueCatGoogleKey = String.fromEnvironment(
     'REVENUECAT_GOOGLE_KEY',
-    defaultValue: '',
+    defaultValue: 'goog_jKWWsdFCREyxHsEPuhFuVxeFBwQ',
   );
 
   static const premiumEntitlement = 'memorycollage_pro';

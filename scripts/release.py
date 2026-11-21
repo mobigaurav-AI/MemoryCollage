@@ -3,7 +3,8 @@
   ship        ship-on-comment.yml: an owner or maintainer comments `ship` on the open release PR
               (dev -> main, label `release`). Waits for REQUIRED_CHECKS on the PR head, merges with a merge
               commit, then dispatches web.yml on main (a merge made with the job token starts no push
-              workflows, and the site deploys from web.yml).
+              workflows). When the release changes the app, it also dispatches deploy-mobile.yml so
+              TestFlight and Play internal start.
   approve-pr  merge-on-comment.yml: the same person comments `approve` or `approved` on a pull request
               into dev. Waits for the same checks, squash-merges into dev, and updates the release PR.
               A release PR is not merged by this command; that comment is told to use `ship`.
@@ -119,6 +120,20 @@ def cmd_closeout(gh: GitHub, env: dict, on_main=is_on_main) -> str:
     return "closed: " + (", ".join(f"#{n}" for n in done) or "none")
 
 
+def _mobile_release(files) -> bool:
+    """True when a release changes the app itself, not only its markdown."""
+    if not isinstance(files, list):
+        return False
+    for item in files:
+        name = str((item or {}).get("filename") or "")
+        if not name.startswith("memory_book/"):
+            continue
+        if name.endswith(".md") or name.startswith("memory_book/docs/"):
+            continue
+        return True
+    return False
+
+
 def cmd_ship(gh: GitHub, env: dict, sleep=time.sleep) -> str:
     num, login = int(env["PR"]), env.get("LOGIN", "")
     pr = gh.req("GET", f"pulls/{num}")
@@ -146,11 +161,16 @@ def cmd_ship(gh: GitHub, env: dict, sleep=time.sleep) -> str:
                         f"{'did not pass' if state == 'failure' else 'did not finish in time'}. Comment `ship` again "
                         "after fixing or approving the checks.")
         return f"not shipped: {state}"
+    files = gh.req("GET", f"pulls/{num}/files", params={"per_page": 100})
     gh.req("PUT", f"pulls/{num}/merge", json={"merge_method": "merge", "sha": pr["head"]["sha"],
                                               "commit_title": f"Merge pull request #{num} from dev (ship by @{login})"})
     gh.dispatch("web.yml", "main", {})
-    gh.comment(num, f"Shipped: merged into main for @{login}. The site deploy (web.yml) started; released issues "
-                    "are closed when it succeeds.")
+    store = ""
+    if _mobile_release(files):
+        gh.dispatch("deploy-mobile.yml", "main", {"platform": "both"})
+        store = " TestFlight and Play internal were started."
+    gh.comment(num, f"Shipped: merged into main for @{login}. The site deploy (web.yml) started.{store} "
+                    "Released issues are closed when the site deploy succeeds.")
     return f"shipped #{num}"
 
 

@@ -53,8 +53,9 @@ How agents build and ship changes is in [AGENTIC_DEVELOPMENT.md](AGENTIC_DEVELOP
   (`flutter analyze`, `flutter test`, Flutter 3.47.5), agents-check (ruff and pytest for `scripts/` and `tests/`,
   agent validation), branch-policy (which branch may target which).
 - `web.yml` deploys the site only when `main` changes (or is dispatched). It uses the existing `VERCEL_TOKEN`.
-- `deploy-mobile.yml` uploads TestFlight and Play internal only when that `main` push changes `memory_book`
-  (not markdown or `memory_book/docs`). A website-only merge does not upload a store build. Signing uses the
+- `deploy-mobile.yml` uploads TestFlight and Play internal when a release changes `memory_book`
+  (not markdown or `memory_book/docs`). `ship` dispatches that workflow, because the merge itself does not
+  start push workflows. A website-only release does not upload a store build. Signing uses the
   organization secrets shared with Arogya. See [memory_book/docs/FASTLANE.md](../memory_book/docs/FASTLANE.md).
 - The API and AWS stack are deployed by hand from `infra/lite` (no workflow deploys them).
 - Agent workflows are described in [AGENTIC_SYSTEM_DESIGN.md](AGENTIC_SYSTEM_DESIGN.md).

@@ -43,6 +43,8 @@ class GH:
         self.reqs.append((method, path, kw.get("json")))
         if path == "pulls":
             return self.prs
+        if path.startswith("pulls/") and path.endswith("/files"):
+            return getattr(self, "files", [])
         if path.startswith("pulls/") and method == "GET":
             return self.pr_state
         return {}
@@ -92,6 +94,23 @@ def test_ship_merges_and_deploys():
     assert r.cmd_ship(gh, {"PR": "49", "LOGIN": "owner", "BODY": "ship"}, sleep=lambda s: None) == "shipped #49"
     merge = [x for x in gh.reqs if x[0] == "PUT"][0]
     assert merge[1] == "pulls/49/merge" and merge[2]["merge_method"] == "merge"
+    assert gh.dispatched == [("web.yml", "main", {})]
+
+
+def test_ship_starts_store_upload_when_the_app_changes():
+    gh = GH({}, [], runs=[cr(n) for n in REQUIRED_CHECKS])
+    gh.files = [{"filename": "memory_book/lib/core/config.dart"}]
+    assert r.cmd_ship(gh, {"PR": "49", "LOGIN": "owner", "BODY": "ship"}, sleep=lambda s: None) == "shipped #49"
+    assert gh.dispatched == [
+        ("web.yml", "main", {}),
+        ("deploy-mobile.yml", "main", {"platform": "both"}),
+    ]
+
+
+def test_ship_skips_store_upload_for_docs_only():
+    gh = GH({}, [], runs=[cr(n) for n in REQUIRED_CHECKS])
+    gh.files = [{"filename": "memory_book/docs/FASTLANE.md"}]
+    r.cmd_ship(gh, {"PR": "49", "LOGIN": "owner", "BODY": "ship"}, sleep=lambda s: None)
     assert gh.dispatched == [("web.yml", "main", {})]
 
 
