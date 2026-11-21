@@ -132,6 +132,40 @@ def write_export_options(profile_name)
   path
 end
 
+def release_notes
+  path = File.join(__dir__, "whats_new.txt")
+  return nil unless File.file?(path)
+
+  text = File.read(path).strip
+  text.empty? ? nil : text
+end
+
+def stage_play_notes(notes)
+  root = File.join(APP_ROOT, "build/play-metadata/android")
+  dir = File.join(root, "en-US/changelogs")
+  FileUtils.mkdir_p(dir)
+  File.write(File.join(dir, "default.txt"), notes)
+  root
+end
+
+# The runner's CocoaPods is built for a different Ruby than this job, so pod
+# fails and the sign-in plugin cannot be archived. Install it for this Ruby.
+def install_cocoapods!
+  return unless ci?
+
+  bindir = nil
+  install = proc do
+    sh("gem", "install", "cocoapods", "-v", "1.17.0", "--no-document")
+    bindir = `ruby -e 'print Gem.bindir'`.strip
+  end
+  defined?(Bundler) ? Bundler.with_unbundled_env(&install) : install.call
+  pod = File.join(bindir.to_s, "pod")
+  UI.user_error!("CocoaPods did not install at #{pod}") unless File.executable?(pod)
+
+  ENV["PATH"] = "#{bindir}:#{ENV.fetch('PATH', '')}"
+  sh(pod, "--version")
+end
+
 def play_json_key
   candidates = [
     ENV["PLAY_JSON_KEY_PATH"],
@@ -180,6 +214,8 @@ platform :ios do
       build_configurations: ["Release"]
     )
     export_plist = write_export_options(profile_name)
+    notes = release_notes
+    install_cocoapods!
 
     Dir.chdir(APP_ROOT) do
       sh(flutter_bin, "build", "ipa", "--release",
@@ -190,12 +226,14 @@ platform :ios do
     ipa = Dir[File.join(APP_ROOT, "build/ios/ipa/*.ipa")].max_by { |path| File.mtime(path) }
     UI.user_error!("No IPA under build/ios/ipa") unless ipa
 
-    upload_to_testflight(
+    flight = {
       api_key: api_key,
       ipa: ipa,
       skip_waiting_for_build_processing: true,
       distribute_external: false
-    )
+    }
+    flight[:changelog] = notes if notes
+    upload_to_testflight(flight)
   end
 end
 
@@ -226,7 +264,11 @@ platform :android do
     aab = File.join(APP_ROOT, "build/app/outputs/bundle/release/app-release.aab")
     UI.user_error!("AAB not found at #{aab}") unless File.file?(aab)
 
-    upload_to_play_store(
+    notes = release_notes
+    if notes && notes.length > 500
+      UI.user_error!("Play release notes are limited to 500 characters (#{notes.length})")
+    end
+    play = {
       package_name: PACKAGE_NAME,
       track: "internal",
       aab: aab,
@@ -234,8 +276,10 @@ platform :android do
       skip_upload_metadata: true,
       skip_upload_images: true,
       skip_upload_screenshots: true,
-      skip_upload_changelogs: true,
+      skip_upload_changelogs: notes.nil?,
       release_status: "completed"
-    )
+    }
+    play[:metadata_path] = stage_play_notes(notes) if notes
+    upload_to_play_store(play)
   end
 end
