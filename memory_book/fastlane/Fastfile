@@ -148,22 +148,25 @@ def stage_play_notes(notes)
   root
 end
 
-# The runner's CocoaPods is built for a different Ruby than this job, so pod
-# fails and the sign-in plugin cannot be archived. Install it for this Ruby.
-def install_cocoapods!
-  return unless ci?
+# The runner's CocoaPods is built for a different Ruby than this job. Install
+# CocoaPods for this Ruby, then run the archive outside the Fastlane bundle.
+# Bundler otherwise rejects `pod` because CocoaPods is not in the Gemfile.
+def with_job_cocoapods
+  return yield unless ci?
 
   bindir = nil
-  install = proc do
+  Bundler.with_unbundled_env do
     sh("gem", "install", "cocoapods", "-v", "1.17.0", "--no-document")
     bindir = `ruby -e 'print Gem.bindir'`.strip
   end
-  defined?(Bundler) ? Bundler.with_unbundled_env(&install) : install.call
   pod = File.join(bindir.to_s, "pod")
   UI.user_error!("CocoaPods did not install at #{pod}") unless File.executable?(pod)
 
-  ENV["PATH"] = "#{bindir}:#{ENV.fetch('PATH', '')}"
-  sh(pod, "--version")
+  Bundler.with_unbundled_env do
+    ENV["PATH"] = "#{bindir}:#{ENV.fetch('PATH', '')}"
+    sh(pod, "--version")
+    yield
+  end
 end
 
 def play_json_key
@@ -215,12 +218,12 @@ platform :ios do
     )
     export_plist = write_export_options(profile_name)
     notes = release_notes
-    install_cocoapods!
-
-    Dir.chdir(APP_ROOT) do
-      sh(flutter_bin, "build", "ipa", "--release",
-         "--build-name=#{name}", "--build-number=#{build_number}",
-         "--export-options-plist=#{export_plist}")
+    with_job_cocoapods do
+      Dir.chdir(APP_ROOT) do
+        sh(flutter_bin, "build", "ipa", "--release",
+           "--build-name=#{name}", "--build-number=#{build_number}",
+           "--export-options-plist=#{export_plist}")
+      end
     end
 
     ipa = Dir[File.join(APP_ROOT, "build/ios/ipa/*.ipa")].max_by { |path| File.mtime(path) }
