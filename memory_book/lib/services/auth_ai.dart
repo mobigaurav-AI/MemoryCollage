@@ -13,11 +13,10 @@ import 'credit_ledger.dart';
 import 'photo_files.dart';
 
 class AuthService {
-  AuthService(this._repo, this._credits, this._settings, {CognitoAuth? cognito})
+  AuthService(this._repo, this._settings, {CognitoAuth? cognito})
       : _cognito = cognito ?? CognitoAuth();
 
   final AuthRepository _repo;
-  final CreditLedger _credits;
   final SettingsRepository _settings;
   final CognitoAuth _cognito;
 
@@ -75,9 +74,6 @@ class AuthService {
         email: email,
       ),
     );
-    if (await _credits.balance() == 0) {
-      await _credits.grant(3, 'welcome_cognito');
-    }
     _noteSession(
       AuthAccount(
         provider: 'cognito',
@@ -111,9 +107,6 @@ class AuthService {
         displayName: displayName,
       ),
     );
-    if (await _credits.balance() == 0) {
-      await _credits.grant(3, 'welcome_local');
-    }
     _noteSession(
       AuthAccount(provider: 'local', subject: email, email: email, displayName: displayName),
       registered: true,
@@ -135,7 +128,6 @@ class AuthService {
     return _signInWithCognitoProvider(
       identityProvider: 'SignInWithApple',
       accountProvider: 'apple',
-      welcome: 'welcome_apple',
     );
   }
 
@@ -143,7 +135,6 @@ class AuthService {
     return _signInWithCognitoProvider(
       identityProvider: 'Google',
       accountProvider: 'google',
-      welcome: 'welcome_google',
     );
   }
 
@@ -151,7 +142,6 @@ class AuthService {
   Future<AuthAccount> _signInWithCognitoProvider({
     required String identityProvider,
     required String accountProvider,
-    required String welcome,
   }) async {
     if (!_cognito.configured) {
       throw StateError('Cognito is not configured.');
@@ -189,9 +179,6 @@ class AuthService {
       throw StateError('Cognito did not return an account id.');
     }
     await _repo.save(account);
-    if (await _credits.balance() == 0) {
-      await _credits.grant(3, welcome);
-    }
     _noteSession(account, registered: false);
     return account;
   }
@@ -264,6 +251,12 @@ class AiVideoClient {
         message: 'Add a photo, a prompt, or both.',
       );
     }
+    if (await _credits.balance() < 1) {
+      return const AiJobResult(
+        ok: false,
+        message: 'AI clips are not free. Buy 5 clips to make one.',
+      );
+    }
     if (AppConfig.aiBaseUrl.isEmpty) {
       if (!hasPhoto) {
         return const AiJobResult(
@@ -271,14 +264,6 @@ class AiVideoClient {
           message: 'Cloud video is not connected yet.',
         );
       }
-      final spent = await _credits.spend(1, 'ai_video');
-      if (!spent) {
-        return const AiJobResult(
-          ok: false,
-          message: 'Not enough credits. Buy a pack after sign-in.',
-        );
-      }
-      await _credits.grant(1, 'refund_no_server');
       return const AiJobResult(
         ok: false,
         fallbackToOnDevice: true,
@@ -286,9 +271,17 @@ class AiVideoClient {
             'Cloud video is not connected yet. Filming this photo on this phone.',
       );
     }
+    final spent = await _credits.spend(1, 'ai_video');
+    if (!spent) {
+      return const AiJobResult(
+        ok: false,
+        message: 'AI clips are not free. Buy 5 clips to make one.',
+      );
+    }
     try {
       final token = await _settings.get(SettingsRepository.cognitoIdTokenKey);
       if (token == null || token.isEmpty) {
+        await _refundOnce(null);
         return const AiJobResult(
           ok: false,
           message:
@@ -315,10 +308,21 @@ class AiVideoClient {
           'durationSec': durationSec,
         }),
       );
-      return await _resultFrom(response);
+      final result = await _resultFrom(response);
+      if (!result.ok) await _refundOnce(result.jobId);
+      return result;
     } catch (e) {
+      await _refundOnce(null);
       return AiJobResult(ok: false, message: e.toString());
     }
+  }
+
+  Future<void> _refundOnce(String? jobId) async {
+    final reason = jobId == null
+        ? 'refund_video:${DateTime.now().microsecondsSinceEpoch}'
+        : 'refund_video:$jobId';
+    if (jobId != null && await _credits.hasReason(reason)) return;
+    await _credits.grant(1, reason);
   }
 
   Future<AiJobResult> refreshJob(String jobId) async {
@@ -353,6 +357,7 @@ class AiVideoClient {
       if (latest.videoUrl != null ||
           latest.status == 'failed' ||
           latest.status == 'completed') {
+        if (latest.status == 'failed') await _refundOnce(first.jobId);
         return latest;
       }
     }
@@ -362,8 +367,6 @@ class AiVideoClient {
   Future<AiJobResult> _resultFrom(http.Response response) async {
     final decoded = response.body.isEmpty ? null : jsonDecode(response.body);
     final json = decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
-    final balance = json['balance'];
-    if (balance is int) await _credits.matchServer(balance);
     final rawMessage = json['message'] ?? json['detail'];
     final message = rawMessage is String ? rawMessage : 'Server ${response.statusCode}';
     final status = json['status'] as String? ?? '';

@@ -84,8 +84,14 @@ class _ClipPromptState extends ConsumerState<_ClipPrompt> {
               ? null
               : () async {
                   setState(() => _buying = true);
-                  await ref.read(premiumControllerProvider.notifier).buyCreditPack();
-                  if (mounted) setState(() => _buying = false);
+                  final bought =
+                      await ref.read(premiumControllerProvider.notifier).buyCreditPack();
+                  if (!context.mounted) return;
+                  setState(() => _buying = false);
+                  if (!bought) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('5 clips are ready.')),
+                  );
                 },
           child: Text(_buying ? 'Buying…' : 'Buy ${AppConfig.creditPackSize} clips'),
         ),

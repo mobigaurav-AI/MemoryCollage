@@ -60,7 +60,7 @@ def test_missing_vendor_falls_back_without_spending():
     body = response.json()
     assert response.status_code == 200
     assert body["fallbackToOnDevice"] is True
-    assert body["balance"] == 3
+    assert body["balance"] == 0
 
 
 def test_configured_vendor_queues_and_debits(monkeypatch):
@@ -75,7 +75,7 @@ def test_configured_vendor_queues_and_debits(monkeypatch):
     body = response.json()
     assert response.status_code == 200
     assert body["status"] == "queued"
-    assert body["balance"] == 2
+    assert body["balance"] == 0
     job = client.get(
         f"/v1/ai/jobs/{body['jobId']}",
         headers={"Authorization": "Bearer dev"},
@@ -94,7 +94,7 @@ def test_text_without_a_vendor_does_not_spend():
     assert response.status_code == 200
     assert body["status"] == "unavailable"
     assert body["fallbackToOnDevice"] is False
-    assert body["balance"] == 3
+    assert body["balance"] == 0
 
 
 def test_fal_queues_image_and_prompt_then_returns_the_clip(monkeypatch):
@@ -136,7 +136,7 @@ def test_fal_queues_image_and_prompt_then_returns_the_clip(monkeypatch):
     body = response.json()
     assert response.status_code == 200
     assert body["status"] == "queued"
-    assert body["balance"] == 2
+    assert body["balance"] == 0
     job = client.get(
         f"/v1/ai/jobs/{body['jobId']}",
         headers={"Authorization": "Bearer dev"},
@@ -144,7 +144,7 @@ def test_fal_queues_image_and_prompt_then_returns_the_clip(monkeypatch):
     finished = job.json()
     assert finished["status"] == "completed"
     assert finished["videoUrl"] == "https://example.com/clip.mp4"
-    assert finished["balance"] == 2
+    assert finished["balance"] == 0
 
 
 def test_runway_sends_a_photo_to_gen4_turbo(monkeypatch):
@@ -186,14 +186,14 @@ def test_runway_sends_a_photo_to_gen4_turbo(monkeypatch):
     body = response.json()
     assert response.status_code == 200
     assert body["status"] == "queued"
-    assert body["balance"] == 2
+    assert body["balance"] == 0
     job = client.get(
         f"/v1/ai/jobs/{body['jobId']}",
         headers={"Authorization": "Bearer dev"},
     )
     finished = job.json()
     assert finished["videoUrl"] == "https://example.com/runway.mp4"
-    assert finished["balance"] == 2
+    assert finished["balance"] == 0
 
 
 def test_world_feed_is_readable_without_an_account():

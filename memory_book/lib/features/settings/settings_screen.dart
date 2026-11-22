@@ -98,7 +98,7 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${session.provider} · $credits AI credits',
+                        credits == 1 ? '1 clip ready' : '$credits clips ready',
                         style: const TextStyle(
                           fontFamily: MbTokens.sans,
                           fontSize: 15,
@@ -477,6 +477,16 @@ class _AiLabScreenState extends ConsumerState<AiLabScreen> {
   Future<void> _make() async {
     final words = _prompt.text.trim();
     if (_image == null && words.isEmpty) return;
+    final credits = ref.read(creditBalanceProvider).value ?? 0;
+    if (credits < 1) {
+      setState(() {
+        _result = const AiJobResult(
+          ok: false,
+          message: 'AI clips are not free. Buy 5 clips to make one.',
+        );
+      });
+      return;
+    }
     setState(() => _busy = true);
     final result = await runCloudClip(
       context,
@@ -495,6 +505,7 @@ class _AiLabScreenState extends ConsumerState<AiLabScreen> {
   Widget build(BuildContext context) {
     final credits = ref.watch(creditBalanceProvider).value ?? 0;
     final session = ref.watch(authSessionProvider).value;
+    final purchaseError = ref.watch(premiumControllerProvider).error;
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -512,8 +523,8 @@ class _AiLabScreenState extends ConsumerState<AiLabScreen> {
             const SizedBox(height: 8),
             Text(
               session == null
-                  ? 'Sign in first. A photo clip spends 1 of your credits. Runway bills about 25 of its own credits for a 5-second clip.'
-                  : 'Balance $credits. With a photo, words only describe the motion. A 5-second photo clip uses about 25 Runway credits. Memory Book still spends 1 of yours.',
+                  ? 'Sign in first. An AI clip is not free. Buy 5 clips, then each one spends 1.'
+                  : 'You have $credits clips. An AI clip is not free. Buy a pack, then each clip spends 1. Premium does not include clips.',
               style: Theme.of(context).textTheme.bodyLarge,
             ),
             const SizedBox(height: 16),
@@ -562,10 +573,29 @@ class _AiLabScreenState extends ConsumerState<AiLabScreen> {
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
-              onPressed: () => ref.read(premiumControllerProvider.notifier).buyCreditPack(),
+              onPressed: () async {
+                final bought =
+                    await ref.read(premiumControllerProvider.notifier).buyCreditPack();
+                if (!context.mounted || !bought) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('5 clips are ready.')),
+                );
+              },
               icon: const Icon(Icons.shopping_bag_outlined),
               label: Text('Buy ${AppConfig.creditPackSize} clips'),
             ),
+            if (purchaseError != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                purchaseError,
+                style: const TextStyle(
+                  fontFamily: MbTokens.sans,
+                  fontSize: 15,
+                  height: 1.4,
+                  color: MbTokens.danger,
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             Text(
               'An AI clip is not free, and Premium does not include it.',
