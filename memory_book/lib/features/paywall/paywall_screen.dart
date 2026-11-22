@@ -41,7 +41,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
             subtitle: premium.isPremium
                 ? 'Unlimited books, every layout, and films made on this phone.'
                 : 'Three books are free. Premium opens the rest. An AI clip is still one credit, not part of the plan.',
-            footer: 'Cancel anytime in the App Store or Play Store.',
+            footer: 'Cancel anytime in the store.',
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -81,26 +81,48 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                         ? null
                         : () async {
                             setState(() => _busyId = 'pack');
-                            await ref
+                            final bought = await ref
                                 .read(premiumControllerProvider.notifier)
                                 .buyCreditPack();
-                            if (mounted) setState(() => _busyId = null);
+                            if (!context.mounted) return;
+                            setState(() => _busyId = null);
+                            if (!bought) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('5 clips are ready.')),
+                            );
                           },
-                    child: Text(
-                      _busyId == 'pack'
-                          ? 'Purchasing…'
-                          : '5 AI clips  ·  one time',
-                      style: const TextStyle(
-                        fontFamily: MbTokens.sans,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: MbTokens.ink,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _busyId == 'pack'
+                              ? 'Purchasing…'
+                              : premium.packPrice == null
+                                  ? '5 AI clips'
+                                  : '5 AI clips  ·  ${premium.packPrice}',
+                          style: const TextStyle(
+                            fontFamily: MbTokens.sans,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: MbTokens.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'One time. Spent one clip at a time.',
+                          style: TextStyle(
+                            fontFamily: MbTokens.sans,
+                            fontSize: 15,
+                            height: 1.3,
+                            color: MbTokens.inkSoft,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Spent one clip at a time. Premium does not include these.',
+                    'Premium does not include these clips.',
                     style: TextStyle(
                       fontFamily: MbTokens.sans,
                       fontSize: 14,

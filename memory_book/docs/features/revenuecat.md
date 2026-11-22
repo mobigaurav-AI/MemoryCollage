@@ -8,13 +8,13 @@ The public SDK key is a compile-time value, one for Apple and one for Google. It
 
 On launch, and again after sign-in, the app calls `Purchases.logIn` with an id of the form `provider:subject`. Email, Apple, and Google therefore become the same RevenueCat customer that Cognito already named. Sign-out calls `Purchases.logOut` unless the current customer is still anonymous. A purchase made before sign-in is aliased onto the account by that login, which is RevenueCat’s normal behavior.
 
-The entitlement id is `premium`. The paywall reads the current offering and shows the price string the store returned. Annual is the plan the shelf is designed around. Restore asks RevenueCat for the same entitlement. A restore that returns no active entitlement does not flip the local flag.
+The entitlement id is `memorycollage_pro`. The paywall is the same on iPhone and Android. It reads the current offering and shows the price string the store returned. Until that price arrives, the button says See the price. Annual is the plan the shelf is designed around. Restore asks RevenueCat for the same entitlement. A restore that returns no active entitlement does not flip the local flag. A new account starts with 3 clips. The account screen shows how many are left.
 
 Product ids stay on the original iOS app, `com.memorycollage.premium.annual` and `com.memorycollage.premium.monthly`, because the App Store listing is an update, not a new record.
 
 ## Release versus the desk
 
-Debug and profile builds can still unlock locally, so the book can be tested without a store sandbox. A release build, which is what TestFlight and Play internal testing install, ignores that switch. If the SDK key is missing, the paywall says purchases are not connected. It does not grant Premium.
+Debug and profile builds can still unlock locally, so the book can be tested without a store sandbox. A release build, which is what TestFlight and Play internal testing install, ignores that switch. If the SDK key is missing, the paywall says purchases are not available in this build. It does not grant Premium.
 
 That matches the rule we already use on a production app: the client may display a price, but it may not invent an entitlement. The store, then RevenueCat, is the source of the boolean.
 

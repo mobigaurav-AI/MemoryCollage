@@ -219,7 +219,8 @@ class PremiumController extends Notifier<PremiumState> {
     await _publish(await ref.read(premiumServiceProvider).restore());
   }
 
-  Future<void> buyCreditPack() async {
+  /// True when the store completed a 5-clip purchase.
+  Future<bool> buyCreditPack() async {
     final result = await ref.read(premiumServiceProvider).purchaseCreditPack();
     final id = result.transactionId;
     if (id != null) {
@@ -230,6 +231,7 @@ class PremiumController extends Notifier<PremiumState> {
       }
     }
     await _publish(result.state);
+    return id != null;
   }
 }
 
