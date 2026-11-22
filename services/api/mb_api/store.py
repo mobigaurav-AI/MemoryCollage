@@ -9,9 +9,6 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 
-WELCOME_CREDITS = 3
-
-
 @dataclass
 class Job:
     id: str
@@ -50,7 +47,6 @@ class MemoryStore:
     def ensure_user(self, sub: str, email: str | None) -> int:
         if sub not in self.users:
             self.users[sub] = email
-            self.events.append((sub, WELCOME_CREDITS, "welcome"))
         elif email and not self.users[sub]:
             self.users[sub] = email
         return self.balance(sub)

@@ -140,7 +140,6 @@ final authRepositoryProvider = Provider<AuthRepository>(
 final authServiceProvider = Provider<AuthService>(
   (ref) => AuthService(
     ref.watch(authRepositoryProvider),
-    ref.watch(creditLedgerProvider),
     ref.watch(settingsRepositoryProvider),
   ),
 );

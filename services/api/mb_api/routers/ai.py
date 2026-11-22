@@ -53,9 +53,7 @@ def _prompt_for(body: VideoRequest, *, has_image: bool) -> str:
 
 
 def _refund(job) -> None:
-    if job.refunded:
-        return
-    store.grant(job.sub, 1, "refund_video")
+    # The phone refunds the clip it spent. This memory ledger is not the wallet.
     job.refunded = True
 
 
@@ -79,11 +77,6 @@ def create_video(body: VideoRequest, request: Request) -> dict:
         )
 
     if settings.video_vendor not in ("fal", "runway"):
-        if not store.spend(sub, 1, "ai_video"):
-            return JSONResponse(
-                status_code=402,
-                content={"message": "Not enough credits.", "balance": balance},
-            )
         job = store.create_job(sub, body.style, "queued")
         return _payload(
             "queued",
@@ -91,12 +84,6 @@ def create_video(body: VideoRequest, request: Request) -> dict:
             message="Queued",
             balance=store.balance(sub),
             fallbackToOnDevice=False,
-        )
-
-    if not store.spend(sub, 1, "ai_video"):
-        return JSONResponse(
-            status_code=402,
-            content={"message": "Not enough credits.", "balance": balance},
         )
 
     vendor = _vendor(settings)
@@ -107,7 +94,6 @@ def create_video(body: VideoRequest, request: Request) -> dict:
             duration_sec=body.durationSec,
         )
     except Exception as exc:
-        store.grant(sub, 1, "refund_video")
         return _payload(
             "failed",
             message=str(exc),

@@ -477,6 +477,16 @@ class _AiLabScreenState extends ConsumerState<AiLabScreen> {
   Future<void> _make() async {
     final words = _prompt.text.trim();
     if (_image == null && words.isEmpty) return;
+    final credits = ref.read(creditBalanceProvider).value ?? 0;
+    if (credits < 1) {
+      setState(() {
+        _result = const AiJobResult(
+          ok: false,
+          message: 'AI clips are not free. Buy 5 clips to make one.',
+        );
+      });
+      return;
+    }
     setState(() => _busy = true);
     final result = await runCloudClip(
       context,
@@ -513,8 +523,8 @@ class _AiLabScreenState extends ConsumerState<AiLabScreen> {
             const SizedBox(height: 8),
             Text(
               session == null
-                  ? 'Sign in first. A new account starts with 3 clips. Each clip spends 1.'
-                  : 'You have $credits clips. A new account starts with 3. With a photo, words only describe the motion. Each clip spends 1. Premium does not include clips.',
+                  ? 'Sign in first. An AI clip is not free. Buy 5 clips, then each one spends 1.'
+                  : 'You have $credits clips. An AI clip is not free. Buy a pack, then each clip spends 1. Premium does not include clips.',
               style: Theme.of(context).textTheme.bodyLarge,
             ),
             const SizedBox(height: 16),
