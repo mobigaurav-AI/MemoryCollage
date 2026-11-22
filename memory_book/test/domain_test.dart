@@ -10,6 +10,7 @@ import 'package:memory_book/domain/slot_crop.dart';
 import 'package:memory_book/domain/collage_templates.dart';
 import 'package:memory_book/domain/media_options.dart';
 import 'package:memory_book/services/auth_ai.dart';
+import 'package:memory_book/services/credit_ledger.dart';
 import 'package:memory_book/services/photo_files.dart';
 import 'package:memory_book/services/cognito_auth.dart';
 import 'package:memory_book/domain/year_film.dart';
@@ -55,10 +56,10 @@ void main() {
   });
 
   test('credit ledger math', () {
-    var balance = 0;
-    balance += 3;
-    balance -= 1;
-    expect(balance, 2);
+    expect(CreditLedger.countsTowardBalance('pack_5:abc'), isTrue);
+    expect(CreditLedger.countsTowardBalance('ai_video'), isTrue);
+    expect(CreditLedger.countsTowardBalance('welcome_cognito'), isFalse);
+    expect(CreditLedger.countsTowardBalance('server_balance'), isFalse);
     expect(AiJobResult(ok: false, fallbackToOnDevice: true).fallbackToOnDevice, isTrue);
   });
 

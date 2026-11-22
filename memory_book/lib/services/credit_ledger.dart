@@ -8,15 +8,27 @@ class CreditLedger {
   final AppDatabase _db;
   final _uuid = const Uuid();
 
+  /// Sign-in gifts and the forgetful server balance are not clips the person bought.
+  static bool countsTowardBalance(String reason) {
+    if (reason == 'server_balance') return false;
+    if (reason.startsWith('welcome')) return false;
+    return true;
+  }
+
   Future<int> balance() async {
     final rows = await _db.select(_db.creditEvents).get();
-    return rows.fold<int>(0, (sum, row) => sum + row.delta);
+    return _sum(rows);
   }
 
   Stream<int> watchBalance() {
-    return _db.select(_db.creditEvents).watch().map(
-          (rows) => rows.fold<int>(0, (sum, row) => sum + row.delta),
-        );
+    return _db.select(_db.creditEvents).watch().map(_sum);
+  }
+
+  int _sum(List<CreditEvent> rows) {
+    final total = rows
+        .where((row) => CreditLedger.countsTowardBalance(row.reason))
+        .fold<int>(0, (sum, row) => sum + row.delta);
+    return total < 0 ? 0 : total;
   }
 
   Future<bool> hasReason(String reason) async {
@@ -41,10 +53,6 @@ class CreditLedger {
     return true;
   }
 
-  Future<void> matchServer(int target) async {
-    final delta = target - await balance();
-    if (delta != 0) await grant(delta, 'server_balance');
-  }
 }
 
 class AuthAccount {

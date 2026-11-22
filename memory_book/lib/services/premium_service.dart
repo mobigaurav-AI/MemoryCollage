@@ -31,6 +31,7 @@ class PremiumState {
     this.error,
     this.plans = const [],
     this.configured = false,
+    this.packPrice,
   });
 
   final bool isPremium;
@@ -38,6 +39,7 @@ class PremiumState {
   final String? error;
   final List<PremiumPlan> plans;
   final bool configured;
+  final String? packPrice;
 
   static const free = PremiumState(isPremium: false, source: 'none');
 
@@ -55,6 +57,7 @@ class PremiumState {
     String? error,
     List<PremiumPlan>? plans,
     bool? configured,
+    String? packPrice,
     bool clearError = false,
   }) {
     return PremiumState(
@@ -63,6 +66,7 @@ class PremiumState {
       error: clearError ? null : (error ?? this.error),
       plans: plans ?? this.plans,
       configured: configured ?? this.configured,
+      packPrice: packPrice ?? this.packPrice,
     );
   }
 }
@@ -124,7 +128,11 @@ class PremiumService {
       await _ensureConfigured();
       final info = await Purchases.getCustomerInfo();
       final offerings = await Purchases.getOfferings();
-      return _fromCustomer(info, plans: _plansFrom(offerings));
+      return _fromCustomer(
+        info,
+        plans: _plansFrom(offerings),
+        packPrice: _creditPackage(offerings)?.storeProduct.priceString,
+      );
     } catch (e) {
       return PremiumState(
         isPremium: false,
@@ -137,7 +145,7 @@ class PremiumService {
   }
 
   PremiumState applyCustomer(CustomerInfo info, PremiumState current) {
-    return _fromCustomer(info, plans: current.plans);
+    return _fromCustomer(info, plans: current.plans, packPrice: current.packPrice);
   }
 
   /// Ties StoreKit and Play purchases to the signed-in account.
@@ -160,23 +168,15 @@ class PremiumService {
   Future<PremiumState> purchase(String planId) async {
     if (activeKey.isEmpty) {
       return (await refresh()).copyWith(
-        error: 'Premium purchases are not connected yet.',
+        error: 'Purchases are not available in this build.',
       );
     }
     try {
       await _ensureConfigured();
       final offerings = await Purchases.getOfferings();
-      final packages = offerings.current?.availablePackages ?? [];
-      final plans = packages.where((pkg) => !_isLifetime(pkg)).toList();
-      Package? pkg;
-      for (final candidate in plans) {
-        if (candidate.identifier == planId) pkg = candidate;
-      }
-      pkg ??= offerings.current?.annual ?? offerings.current?.monthly;
-      if (pkg == null || _isLifetime(pkg)) {
-        throw StateError(
-          'No monthly or yearly plan. Add those two to the current offering.',
-        );
+      final pkg = _selectPlan(offerings, planId);
+      if (pkg == null) {
+        throw StateError('This plan is not on sale yet.');
       }
       await Purchases.purchase(PurchaseParams.package(pkg));
       return await refresh();
@@ -208,6 +208,7 @@ class PremiumService {
   PremiumState _fromCustomer(
     CustomerInfo info, {
     required List<PremiumPlan> plans,
+    String? packPrice,
   }) {
     final entitled =
         info.entitlements.all[AppConfig.premiumEntitlement]?.isActive ?? false;
@@ -216,14 +217,33 @@ class PremiumService {
       source: entitled ? 'revenuecat' : 'none',
       plans: plans.isEmpty ? _storePlans() : plans,
       configured: true,
+      packPrice: packPrice,
     );
+  }
+
+  Package? _selectPlan(Offerings offerings, String planId) {
+    final current = offerings.current;
+    for (final pkg in current?.availablePackages ?? const <Package>[]) {
+      if (_isLifetime(pkg)) continue;
+      if (pkg.identifier == planId || pkg.storeProduct.identifier == planId) {
+        return pkg;
+      }
+    }
+    if (planId == AppConfig.premiumAnnualId) return _sellable(current?.annual);
+    if (planId == AppConfig.premiumMonthlyId) return _sellable(current?.monthly);
+    return null;
+  }
+
+  Package? _sellable(Package? pkg) {
+    if (pkg == null || _isLifetime(pkg)) return null;
+    return pkg;
   }
 
   Future<PackPurchase> purchaseCreditPack() async {
     if (activeKey.isEmpty) {
       return PackPurchase(
         state: (await refresh()).copyWith(
-          error: 'Credit packs are not connected yet.',
+          error: 'Purchases are not available in this build.',
         ),
       );
     }
@@ -232,9 +252,7 @@ class PremiumService {
       final offerings = await Purchases.getOfferings();
       final pkg = _creditPackage(offerings);
       if (pkg == null) {
-        throw StateError(
-          'No five-clip pack. Add ${AppConfig.creditPackProductId} to the current offering.',
-        );
+        throw StateError('The 5-clip pack is not on sale yet.');
       }
       final product = pkg.storeProduct;
       PurchaseResult result;
@@ -341,14 +359,14 @@ class PremiumService {
       PremiumPlan(
         id: AppConfig.premiumAnnualId,
         title: 'Annual',
-        priceLabel: 'App Store',
+        priceLabel: 'See the price',
         detail: 'The family plan',
         annual: true,
       ),
       PremiumPlan(
         id: AppConfig.premiumMonthlyId,
         title: 'Monthly',
-        priceLabel: 'App Store',
+        priceLabel: 'See the price',
         detail: 'Cancel anytime',
         monthly: true,
       ),

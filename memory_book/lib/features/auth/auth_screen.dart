@@ -77,7 +77,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             _toast('Signed in.');
             context.pop();
           } else {
-            _toast('Account saved on this phone. Three credits are waiting.');
+            _toast('Account saved on this phone.');
             context.pop();
           }
         case _AuthMode.confirm:
@@ -87,7 +87,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           await auth.confirm(email, _code.text.trim());
           await auth.signInWithEmail(email, password);
           if (!mounted) return;
-          _toast('Signed in. Three credits are waiting.');
+          _toast('Signed in.');
           context.pop();
         case _AuthMode.signIn:
           if (password.length < 8) {
